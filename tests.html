@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gastos — testes</title>
+<link rel="stylesheet" href="styles.css">
+<style>
+  main { max-width: 720px; }
+  .case { display: grid; grid-template-columns: 26px 1fr; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--line); font-size: 13.5px; }
+  .case b { font-weight: 500; }
+  .ok { color: var(--accent); }
+  .fail { color: var(--danger); }
+  .detail { color: var(--text-soft); font-size: 12.5px; }
+  h2 { font-size: 15px; font-weight: 500; margin: 22px 0 2px; }
+  #head { position: sticky; top: 0; background: var(--bg); padding: 10px 0; font-size: 17px; font-weight: 500; }
+</style>
+</head>
+<body>
+<main>
+  <div id="head">Rodando…</div>
+  <div id="out"></div>
+</main>
+
+<script type="module">
+import { splitInstallments, parseValueInput, formatCents } from './js/money.js';
+import { addMonths, monthDiff, periodDate, monthSummary, installmentsOf, entriesFor } from './js/model.js';
+import { parseFala, wordsToNumber } from './js/voice.js';
+
+const out = document.getElementById('out');
+let pass = 0, fail = 0;
+
+function group(name) {
+  const h = document.createElement('h2');
+  h.textContent = name;
+  out.appendChild(h);
+}
+
+function check(label, actual, expected) {
+  const a = JSON.stringify(actual), e = JSON.stringify(expected);
+  const ok = a === e;
+  ok ? pass++ : fail++;
+  const row = document.createElement('div');
+  row.className = 'case';
+  row.innerHTML = `<span class="${ok ? 'ok' : 'fail'}">${ok ? '✓' : '✕'}</span>
+    <span><b>${label}</b>${ok ? '' : `<br><span class="detail">esperado ${e}<br>obtido&nbsp;&nbsp; ${a}</span>`}</span>`;
+  out.appendChild(row);
+}
+
+// ---------- divisao de parcelas: a soma tem de fechar sempre
+
+group('Divisão de parcelas');
+check('100,00 em 3x', splitInstallments(10000, 3), [3333, 3333, 3334]);
+check('10,00 em 3x', splitInstallments(1000, 3), [333, 333, 334]);
+check('0,05 em 2x', splitInstallments(5, 2), [2, 3]);
+check('100,00 à vista', splitInstallments(10000, 1), [10000]);
+check('0,01 em 3x', splitInstallments(1, 3), [0, 0, 1]);
+for (const [total, n] of [[10000, 3], [1, 3], [99999, 7], [12345, 11], [5, 2], [777, 60]]) {
+  const parts = splitInstallments(total, n);
+  check(`soma fecha: ${formatCents(total)} em ${n}x`,
+    [parts.reduce((a, b) => a + b, 0), parts.length], [total, n]);
+}
+
+// ---------- leitura de valores digitados
+
+group('Valores digitados');
+const valores = [['1.234,56', 123456], ['1234,56', 123456], ['100', 10000],
+  ['1.500', 150000], ['100.50', 10050], ['R$ 89,90', 8990], ['0,05', 5],
+  ['2600', 260000], ['abc', null], ['', null]];
+for (const [input, expected] of valores) check(`"${input}"`, parseValueInput(input), expected);
+check('formata 2.566,67', formatCents(256667), '2.566,67');
+
+// ---------- meses
+
+group('Meses');
+check('2026-12 + 1', addMonths('2026-12', 1), '2027-01');
+check('2026-01 − 1', addMonths('2026-01', -1), '2025-12');
+check('2026-08 + 5', addMonths('2026-08', 5), '2027-01');
+check('diferença ago→out', monthDiff('2026-08', '2026-10'), 2);
+check('dia 30 em fevereiro', periodDate('2027-02', 30), '2027-02-28');
+check('dia 30 em fev. bissexto', periodDate('2028-02', 30), '2028-02-29');
+check('dia 15 em fevereiro', periodDate('2027-02', 15), '2027-02-15');
+
+// ---------- cenário do enunciado
+
+group('Cenário do enunciado');
+const st = {
+  version: 1,
+  config: { startMonth: '2026-08' },
+  income: { default: { p15: 200000, p30: 260000 }, overrides: {} },
+  expenses: [
+    { id: 'e1', description: 'Sapato loja Bennys', date: '2026-08-27', month: '2026-08', period: 30, totalCents: 10000, installments: 3 },
+    { id: 'e2', description: 'Mercado Extra', date: '2026-08-08', month: '2026-08', period: 15, totalCents: 45000, installments: 1 },
+  ],
+};
+const pocket = (m, p) => {
+  const s = monthSummary(st, m).periods.find((x) => x.period === p);
+  return {
+    receber: formatCents(s.income),
+    saldo: formatCents(s.balance),
+    linhas: s.entries.map((e) => `${e.isParceled ? `${e.index}/${e.of}` : '—'} ${formatCents(e.cents)}${e.isFinalWarning ? ' VERMELHO' : ''}`),
+  };
+};
+check('ago · dia 15', pocket('2026-08', 15), { receber: '2.000,00', saldo: '1.550,00', linhas: ['— 450,00'] });
+check('ago · dia 30', pocket('2026-08', 30), { receber: '2.600,00', saldo: '2.566,67', linhas: ['1/3 33,33'] });
+check('set · dia 30 (replicado)', pocket('2026-09', 30), { receber: '2.600,00', saldo: '2.566,67', linhas: ['2/3 33,33'] });
+check('out · dia 30 (última, vermelho)', pocket('2026-10', 30), { receber: '2.600,00', saldo: '2.566,66', linhas: ['3/3 33,34 VERMELHO'] });
+check('nov · dia 30 (acabou)', pocket('2026-11', 30), { receber: '2.600,00', saldo: '2.600,00', linhas: [] });
+check('set · dia 15 (não herda à vista)', pocket('2026-09', 15), { receber: '2.000,00', saldo: '2.000,00', linhas: [] });
+check('à vista não fica vermelho',
+  installmentsOf(st.expenses[1]).map((p) => p.isFinalWarning), [false]);
+check('parcela fica no bolso de origem',
+  entriesFor(st, '2026-10', 15).length, 0);
+check('override vale só no mês', (() => {
+  const s2 = { ...st, income: { default: { p15: 200000, p30: 260000 }, overrides: { '2026-09': { p30: 300000 } } } };
+  return [monthSummary(s2, '2026-09').periods[1].income, monthSummary(s2, '2026-10').periods[1].income];
+})(), [300000, 260000]);
+
+// ---------- numerais escritos
+
+group('Numerais em português');
+const numerais = [[['cem'], 100], [['cento', 'e', 'vinte', 'e', 'cinco'], 125],
+  [['mil', 'e', 'duzentos'], 1200], [['dois', 'mil', 'e', 'quinhentos'], 2500],
+  [['quatrocentos', 'e', 'cinquenta'], 450], [['dezessete'], 17],
+  [['tres'], 3], [['noventa', 'e', 'nove'], 99], [['banana'], null]];
+for (const [tokens, expected] of numerais) check(tokens.join(' '), wordsToNumber(tokens), expected);
+
+// ---------- fala
+
+group('Fala transcrita');
+const HOJE = '2026-08-27';
+const falas = [
+  ['vinte e sete de agosto sapato loja bennys cem reais em três vezes', '2026-08-27', 'Sapato loja bennys', 10000, 3],
+  ['hoje mercado extra quatrocentos e cinquenta reais', '2026-08-27', 'Mercado extra', 45000, 1],
+  ['27/08 sapato loja bennys 100,00 3x', '2026-08-27', 'Sapato loja bennys', 10000, 3],
+  ['farmácia 950 reais', '2026-08-27', 'Farmácia', 95000, 1],
+  ['cento e vinte e cinco reais e cinquenta centavos posto ipiranga em 2 vezes', '2026-08-27', 'Posto ipiranga', 12550, 2],
+  ['ontem uber 32,90', '2026-08-26', 'Uber', 3290, 1],
+  ['mil e duzentos reais notebook em 10 vezes', '2026-08-27', 'Notebook', 120000, 10],
+  ['dia 5 aluguel 1.500', '2026-08-05', 'Aluguel', 150000, 1],
+  ['gastei R$ 89,90 na padaria', '2026-08-27', 'Padaria', 8990, 1],
+  ['comprei uma geladeira parcelado em 12 dois mil e quinhentos reais', '2026-08-27', 'Geladeira', 250000, 12],
+  ['academia 120 reais sem juros', '2026-08-27', 'Academia', 12000, 1],
+  ['pão de queijo cinco reais e cinquenta centavos', '2026-08-27', 'Pão de queijo', 550, 1],
+  ['netflix 55,90 hoje', '2026-08-27', 'Netflix', 5590, 1],
+  ['15 de setembro seguro do carro 3.200 em 4 vezes', '2026-09-15', 'Seguro do carro', 320000, 4],
+  ['anteontem estacionamento 15 reais', '2026-08-25', 'Estacionamento', 1500, 1],
+  ['31/12/2026 presente de natal 480 reais em 6 vezes', '2026-12-31', 'Presente de natal', 48000, 6],
+];
+for (const [fala, date, description, totalCents, installments] of falas) {
+  const r = parseFala(fala, HOJE);
+  check(`"${fala}"`,
+    { date: r.date, description: r.description, totalCents: r.totalCents, installments: r.installments },
+    { date, description, totalCents, installments });
+}
+check('fala vazia não inventa valor',
+  (() => { const r = parseFala('', HOJE); return [r.totalCents, r.installments, r.description]; })(),
+  [null, 1, '']);
+check('data inválida cai em hoje', parseFala('40/13 mercado 50 reais', HOJE).date, HOJE);
+
+// ---------- resultado
+
+const head = document.getElementById('head');
+head.textContent = fail === 0
+  ? `${pass} testes passaram`
+  : `${fail} de ${pass + fail} falharam`;
+head.className = fail === 0 ? 'ok' : 'fail';
+document.title = fail === 0 ? `OK (${pass})` : `FALHOU (${fail})`;
+</script>
+</body>
+</html>

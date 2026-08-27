@@ -1,0 +1,16 @@
+{
+  "name": "Gastos - dia 15 e dia 30",
+  "short_name": "Gastos",
+  "description": "Controle de gastos por periodo com replicacao de parcelas.",
+  "lang": "pt-BR",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f3ef",
+  "theme_color": "#0f6e56",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

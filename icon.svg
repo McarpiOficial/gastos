@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" role="img" aria-label="Gastos">
+  <rect width="192" height="192" rx="42" fill="#0f6e56"/>
+  <rect x="38" y="52" width="116" height="34" rx="10" fill="#e1f5ee"/>
+  <rect x="38" y="106" width="116" height="34" rx="10" fill="#9fe1cb"/>
+  <circle cx="128" cy="69" r="9" fill="#0f6e56"/>
+  <circle cx="128" cy="123" r="9" fill="#0f6e56"/>
+</svg>
