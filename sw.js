@@ -1,7 +1,7 @@
 // Rede primeiro, cache como rede de seguranca. Assim o app nunca serve um
 // arquivo velho quando esta online, e continua abrindo offline.
 
-const CACHE = 'gastos-v1';
+const CACHE = 'gastos-v2';
 const ASSETS = [
   '.',
   'index.html',
@@ -9,6 +9,9 @@ const ASSETS = [
   'manifest.webmanifest',
   'icon.svg',
   'icon-maskable.svg',
+  'icon-192.png',
+  'icon-512.png',
+  'icon-maskable-512.png',
   'js/app.js',
   'js/ui.js',
   'js/store.js',
