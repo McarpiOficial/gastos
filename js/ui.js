@@ -391,7 +391,7 @@ export function renderSettingsSheet(state) {
                value="${esc(String(state.config.keepMonths))}">
       </div>
       <button type="button" class="btn" style="width:100%" data-action="purge-preview">
-        ${icon('broom')} Ver o que seria removido
+        ${icon('broom')} Limpar gastos antigos
       </button>
 
       <h3 class="settings-section" style="margin-top:20px">${icon('download', 'icon icon--sm')} Backup</h3>
@@ -407,13 +407,6 @@ export function renderSettingsSheet(state) {
         <input type="number" id="cfg-backup-days" inputmode="numeric" min="1" max="90" step="1"
                value="${esc(String(state.config.backupReminderDays || 10))}">
       </div>
-
-      <h3 class="settings-section" style="margin-top:20px">Dados</h3>
-      <ul class="options">
-        <li><button type="button" class="is-danger" data-action="reset">
-          ${icon('trash')} Apagar todos os dados
-        </button></li>
-      </ul>
     </div>`;
 }
 

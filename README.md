@@ -68,7 +68,10 @@ O ícone de engrenagem no topo abre:
   saldo do mês.
 - **Gastos antigos** — limpa o aparelho do que já passou.
 - **Backup** — exportar, importar e o lembrete automático (ver abaixo).
-- **Dados** — apagar tudo.
+
+Não existe um botão de "apagar tudo": é um risco desnecessário para um app que
+guarda dados só no aparelho, sem conta e sem recuperação. Se algum dia precisar
+zerar, basta limpar os dados do site nas configurações do navegador.
 
 ## Aplicações (poupança e afins)
 
@@ -83,12 +86,14 @@ foi aplicado.
 
 ## Limpar gastos antigos
 
-Em Configurações → Gastos antigos, escolha quantos meses manter (padrão 4) e
-toque em **"Ver o que seria removido"**. O app mostra a lista antes de apagar
-qualquer coisa. Uma compra parcelada com parcela ainda em aberto **nunca é
-removida**, mesmo que tenha começado há muito tempo — senão o mês atual
-perderia o débito. O corte é sempre contado a partir do mês real de hoje, não
-do mês que você está olhando na tela.
+Nada é removido sozinho — a limpeza só acontece com dois toques seus. Em
+Configurações → Gastos antigos, escolha quantos meses manter (padrão 4) e
+toque em **"Limpar gastos antigos"**. O app mostra a lista do que seria
+removido; só depois de você tocar em **"Limpar"** de novo, na tela seguinte,
+é que os registros somem de fato. Uma compra parcelada com parcela ainda em
+aberto **nunca é removida**, mesmo que tenha começado há muito tempo — senão
+o mês atual perderia o débito. O corte é sempre contado a partir do mês real
+de hoje, não do mês que você está olhando na tela.
 
 ## Backup
 

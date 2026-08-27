@@ -482,21 +482,6 @@ sheet.addEventListener('click', (event) => {
     case 'import':
       fileInput.click();
       break;
-    case 'reset':
-      openSheet(ui.renderConfirmSheet({
-        title: 'Apagar todos os dados',
-        message: 'Valores a receber e todas as compras serão apagados deste aparelho. Não há como desfazer.',
-        confirmLabel: 'Apagar tudo',
-        action: 'reset-confirm',
-      }));
-      break;
-    case 'reset-confirm':
-      state = store.resetAll();
-      currentMonth = currentMonthKey();
-      closeSheet();
-      render();
-      toast('Dados apagados');
-      break;
     case 'application-save':
       saveApplication();
       break;

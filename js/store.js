@@ -302,9 +302,3 @@ export function importJson(text) {
   persist();
   return state;
 }
-
-export function resetAll() {
-  state = defaultState();
-  persist();
-  return state;
-}
