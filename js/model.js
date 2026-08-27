@@ -150,13 +150,78 @@ export function periodSummary(state, monthKey, period) {
 
 export function monthSummary(state, monthKey) {
   const periods = PERIODS.map((p) => periodSummary(state, monthKey, p));
+  const balance = periods.reduce((a, p) => a + p.balance, 0);
+  const applied = appliedInMonth(state, monthKey);
+  const deduct = !!state.config?.deductApplications;
   return {
     monthKey,
     label: monthLabel(monthKey),
     periods,
     income: periods.reduce((a, p) => a + p.income, 0),
     spent: periods.reduce((a, p) => a + p.spent, 0),
-    balance: periods.reduce((a, p) => a + p.balance, 0),
+    // O saldo dos bolsos nunca e afetado pelas aplicacoes; quem opta por
+    // descontar ve o desconto so no saldo do mes, que e onde ele cabe.
+    balance: deduct ? balance - applied : balance,
+    balanceBeforeApplications: balance,
+    applied,
+    appliedAccumulated: appliedUpTo(state, monthKey),
+    deductApplications: deduct,
+  };
+}
+
+// ---------- valor aplicado (poupanca e afins), apartado dos gastos
+
+export function applicationsIn(state, monthKey) {
+  return (state.applications || [])
+    .filter((a) => a.month === monthKey)
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : 1));
+}
+
+export function appliedInMonth(state, monthKey) {
+  return applicationsIn(state, monthKey).reduce((acc, a) => acc + a.cents, 0);
+}
+
+// Total guardado desde o inicio ate o mes exibido - o numero que interessa
+// para quem esta acompanhando a poupanca crescer.
+export function appliedUpTo(state, monthKey) {
+  return (state.applications || [])
+    .filter((a) => a.month <= monthKey)
+    .reduce((acc, a) => acc + a.cents, 0);
+}
+
+// ---------- limpeza de meses passados
+
+export function lastInstallmentMonth(expense) {
+  const n = Math.max(1, Math.trunc(expense.installments) || 1);
+  return addMonths(expense.month, n - 1);
+}
+
+// Mes de corte: em agosto, guardando 4 meses, corta em abril (inclusive),
+// deixando maio, junho, julho e agosto.
+export function purgeCutoff(keepMonths, referenceMonth = currentMonthKey()) {
+  return addMonths(referenceMonth, -Math.max(1, Math.trunc(keepMonths) || 1));
+}
+
+// O que a limpeza faria, sem executar nada. Uma compra antiga com parcela
+// ainda em aberto precisa ficar, senao o mes atual perderia o debito.
+export function purgePlan(state, cutoffMonth) {
+  const remove = [];
+  const keepRunning = [];
+  for (const expense of state.expenses) {
+    if (expense.month > cutoffMonth) continue;
+    if (lastInstallmentMonth(expense) > cutoffMonth) keepRunning.push(expense);
+    else remove.push(expense);
+  }
+  const applications = (state.applications || []).filter((a) => a.month <= cutoffMonth);
+  const overrides = Object.keys(state.income.overrides || {}).filter((m) => m <= cutoffMonth);
+  return {
+    cutoffMonth,
+    cutoffLabel: monthLabel(cutoffMonth),
+    expenses: remove,
+    keepRunning,
+    applications,
+    overrides,
+    nothingToDo: !remove.length && !applications.length && !overrides.length,
   };
 }
 

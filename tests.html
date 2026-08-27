@@ -24,7 +24,10 @@
 
 <script type="module">
 import { splitInstallments, parseValueInput, formatCents } from './js/money.js';
-import { addMonths, monthDiff, periodDate, monthSummary, installmentsOf, entriesFor } from './js/model.js';
+import {
+  addMonths, monthDiff, periodDate, monthSummary, installmentsOf, entriesFor,
+  appliedInMonth, appliedUpTo, purgeCutoff, purgePlan,
+} from './js/model.js';
 import { parseFala, wordsToNumber } from './js/voice.js';
 
 const out = document.getElementById('out');
@@ -157,6 +160,62 @@ check('fala vazia não inventa valor',
   (() => { const r = parseFala('', HOJE); return [r.totalCents, r.installments, r.description]; })(),
   [null, 1, '']);
 check('data inválida cai em hoje', parseFala('40/13 mercado 50 reais', HOJE).date, HOJE);
+
+// ---------- aplicacoes (poupanca), apartadas dos gastos
+
+group('Aplicações (poupança)');
+const stApp = {
+  version: 2,
+  config: { startMonth: '2026-08', deductApplications: false },
+  income: { default: { p15: 200000, p30: 260000 }, overrides: {} },
+  expenses: [
+    { id: 'e1', description: 'Sapato', date: '2026-08-27', month: '2026-08', period: 30, totalCents: 10000, installments: 3 },
+  ],
+  applications: [
+    { id: 'a1', description: 'CDB', date: '2026-08-10', month: '2026-08', cents: 50000 },
+    { id: 'a2', description: 'Poupança', date: '2026-09-05', month: '2026-09', cents: 30000 },
+  ],
+};
+check('aplicação não soma no gasto do bolso',
+  entriesFor(stApp, '2026-08', 30).length, 1);
+check('aplicado no mês (ago)', appliedInMonth(stApp, '2026-08'), 50000);
+check('aplicado no mês (set)', appliedInMonth(stApp, '2026-09'), 30000);
+check('acumulado até set', appliedUpTo(stApp, '2026-09'), 80000);
+check('acumulado até jul (antes de existir)', appliedUpTo(stApp, '2026-07'), 0);
+check('saldo do mês NÃO desconta por padrão',
+  monthSummary(stApp, '2026-08').balance, monthSummary(stApp, '2026-08').balanceBeforeApplications);
+const stAppDeduct = { ...stApp, config: { ...stApp.config, deductApplications: true } };
+check('saldo desconta quando ligado',
+  monthSummary(stAppDeduct, '2026-08').balance,
+  monthSummary(stAppDeduct, '2026-08').balanceBeforeApplications - 50000);
+check('bolsos continuam iguais com a opção ligada',
+  JSON.stringify(monthSummary(stApp, '2026-08').periods),
+  JSON.stringify(monthSummary(stAppDeduct, '2026-08').periods));
+
+// ---------- limpeza de meses passados
+
+group('Limpar gastos antigos');
+check('corte de 4 meses a partir de agosto', purgeCutoff(4, '2026-08'), '2026-04');
+check('corte de 1 mês a partir de janeiro', purgeCutoff(1, '2026-01'), '2025-12');
+const stPurge = {
+  version: 2,
+  config: { startMonth: '2026-01' },
+  income: { default: { p15: 0, p30: 0 }, overrides: { '2026-02': { p15: 150000 } } },
+  expenses: [
+    { id: 'e1', description: 'Compra velha encerrada', date: '2026-02-05', month: '2026-02', period: 15, totalCents: 9000, installments: 1 },
+    { id: 'e2', description: 'Financiamento ainda rodando', date: '2026-03-10', month: '2026-03', period: 30, totalCents: 120000, installments: 12 },
+    { id: 'e3', description: 'Compra atual', date: '2026-08-01', month: '2026-08', period: 15, totalCents: 5000, installments: 1 },
+  ],
+  applications: [{ id: 'a1', description: 'CDB velho', date: '2026-02-15', month: '2026-02', cents: 20000 }],
+};
+const plan = purgePlan(stPurge, purgeCutoff(4, '2026-08'));
+check('remove só o que já encerrou', plan.expenses.map((e) => e.id), ['e1']);
+check('mantém compra com parcela ainda em aberto', plan.keepRunning.map((e) => e.id), ['e2']);
+check('não mexe na compra do mês atual', plan.expenses.some((e) => e.id === 'e3'), false);
+check('remove aplicação antiga junto', plan.applications.map((a) => a.id), ['a1']);
+check('remove override de valor a receber antigo', plan.overrides, ['2026-02']);
+check('nada para limpar quando corte é antes de tudo',
+  purgePlan(stPurge, '2025-01').nothingToDo, true);
 
 // ---------- resultado
 

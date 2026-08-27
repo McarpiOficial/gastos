@@ -1,7 +1,7 @@
 // Rede primeiro, cache como rede de seguranca. Assim o app nunca serve um
 // arquivo velho quando esta online, e continua abrindo offline.
 
-const CACHE = 'gastos-v2';
+const CACHE = 'gastos-v3';
 const ASSETS = [
   '.',
   'index.html',

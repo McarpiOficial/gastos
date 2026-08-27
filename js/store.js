@@ -1,9 +1,13 @@
 // Estado em localStorage. Schema versionado, com migracao e backup em arquivo.
 
-import { currentMonthKey, periodKey, monthKeyOf } from './model.js';
+import { currentMonthKey, periodKey, monthKeyOf, todayIso } from './model.js';
 
 const STORAGE_KEY = 'gastos.state';
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
+
+// null = lembrete de backup desligado. Numero = a cada quantos dias avisar.
+const DEFAULT_BACKUP_REMINDER_DAYS = 10;
+const DEFAULT_KEEP_MONTHS = 4;
 
 let state = null;
 const listeners = new Set();
@@ -11,9 +15,17 @@ const listeners = new Set();
 export function defaultState() {
   return {
     version: SCHEMA_VERSION,
-    config: { startMonth: currentMonthKey() },
+    config: {
+      startMonth: currentMonthKey(),
+      deductApplications: false,
+      keepMonths: DEFAULT_KEEP_MONTHS,
+      backupReminderDays: DEFAULT_BACKUP_REMINDER_DAYS,
+      lastBackupAt: null,
+      lastPurgeAt: null,
+    },
     income: { default: { p15: 0, p30: 0 }, overrides: {} },
     expenses: [],
+    applications: [],
     seq: 0,
   };
 }
@@ -23,7 +35,16 @@ function migrate(raw) {
   if (!raw || typeof raw !== 'object') return base;
   const next = {
     version: SCHEMA_VERSION,
-    config: { startMonth: raw.config?.startMonth || base.config.startMonth },
+    config: {
+      startMonth: raw.config?.startMonth || base.config.startMonth,
+      deductApplications: !!raw.config?.deductApplications,
+      keepMonths: Math.max(1, Math.trunc(Number(raw.config?.keepMonths)) || DEFAULT_KEEP_MONTHS),
+      backupReminderDays: raw.config?.backupReminderDays === null
+        ? null
+        : Math.max(1, Math.trunc(Number(raw.config?.backupReminderDays)) || DEFAULT_BACKUP_REMINDER_DAYS),
+      lastBackupAt: /^\d{4}-\d{2}-\d{2}$/.test(raw.config?.lastBackupAt || '') ? raw.config.lastBackupAt : null,
+      lastPurgeAt: /^\d{4}-\d{2}$/.test(raw.config?.lastPurgeAt || '') ? raw.config.lastPurgeAt : null,
+    },
     income: {
       default: {
         p15: Number(raw.income?.default?.p15) || 0,
@@ -32,6 +53,7 @@ function migrate(raw) {
       overrides: {},
     },
     expenses: [],
+    applications: [],
     seq: Number(raw.seq) || 0,
   };
   const overrides = raw.income?.overrides || {};
@@ -56,8 +78,18 @@ function migrate(raw) {
       installments: Math.min(60, Math.max(1, Math.trunc(Number(e.installments) || 1))),
     });
   }
-  const maxSeq = next.expenses.reduce((acc, e) => {
-    const m = /^e_(\d+)$/.exec(e.id);
+  for (const a of Array.isArray(raw.applications) ? raw.applications : []) {
+    if (!a || !a.description || !a.date || !(Number(a.cents) > 0)) continue;
+    next.applications.push({
+      id: String(a.id || `a_${++next.seq}`),
+      description: String(a.description).trim(),
+      date: String(a.date),
+      month: /^\d{4}-\d{2}$/.test(a.month || '') ? a.month : monthKeyOf(a.date),
+      cents: Math.trunc(Number(a.cents)),
+    });
+  }
+  const maxSeq = [...next.expenses, ...next.applications].reduce((acc, e) => {
+    const m = /^[ea]_(\d+)$/.exec(e.id);
     return m ? Math.max(acc, Number(m[1])) : acc;
   }, next.seq);
   next.seq = maxSeq;
@@ -170,10 +202,96 @@ export function setStartMonth(monthKey) {
   persist();
 }
 
+// ---------- valor aplicado (poupanca e afins)
+// Fica num array apartado dos gastos: nunca entra na soma de nenhum bolso.
+
+export function addApplication({ description, date, month, cents }) {
+  const application = {
+    id: `a_${++state.seq}`,
+    description: String(description).trim(),
+    date,
+    month: month || monthKeyOf(date),
+    cents: Math.trunc(cents),
+  };
+  state.applications.push(application);
+  persist();
+  return application;
+}
+
+export function updateApplication(id, patch) {
+  const application = state.applications.find((a) => a.id === id);
+  if (!application) return null;
+  if (patch.description != null) application.description = String(patch.description).trim();
+  if (patch.date != null) application.date = patch.date;
+  if (patch.month != null) application.month = patch.month;
+  if (patch.cents != null) application.cents = Math.trunc(patch.cents);
+  persist();
+  return application;
+}
+
+export function removeApplication(id) {
+  const i = state.applications.findIndex((a) => a.id === id);
+  if (i < 0) return false;
+  state.applications.splice(i, 1);
+  persist();
+  return true;
+}
+
+export function findApplication(id) {
+  return state.applications.find((a) => a.id === id) || null;
+}
+
+// ---------- configuracao
+
+export function setConfig(patch) {
+  Object.assign(state.config, patch);
+  persist();
+}
+
+// ---------- limpeza de meses passados
+// So remove o que ja fechou de vez: uma compra parcelada com parcela ainda
+// em aberto no mes atual fica, senao o mes corrente perderia o debito.
+
+export function purgeBefore(cutoffMonth) {
+  const before = { expenses: state.expenses.length, applications: state.applications.length };
+  state.expenses = state.expenses.filter((e) => {
+    const runsUntil = addMonthsLocal(e.month, Math.max(1, e.installments) - 1);
+    return !(e.month <= cutoffMonth && runsUntil <= cutoffMonth);
+  });
+  state.applications = state.applications.filter((a) => a.month > cutoffMonth);
+  for (const month of Object.keys(state.income.overrides)) {
+    if (month <= cutoffMonth) delete state.income.overrides[month];
+  }
+  if (state.config.startMonth <= cutoffMonth) {
+    // A navegacao para tras nao pode ir alem do que ainda existe.
+    state.config.startMonth = addMonthsLocal(cutoffMonth, 1);
+  }
+  state.config.lastPurgeAt = cutoffMonth;
+  const removed = {
+    expenses: before.expenses - state.expenses.length,
+    applications: before.applications - state.applications.length,
+  };
+  persist();
+  return removed;
+}
+
+function addMonthsLocal(monthKey, n) {
+  const [y, m] = monthKey.split('-').map(Number);
+  const total = y * 12 + (m - 1) + n;
+  const year = Math.floor(total / 12);
+  const month = total % 12;
+  return `${year}-${String(month + 1).padStart(2, '0')}`;
+}
+
 // ---------- backup
 
 export function exportJson() {
   return JSON.stringify(state, null, 2);
+}
+
+export function markBackupDone(dateIso = todayIso()) {
+  state.config.lastBackupAt = dateIso;
+  persist();
 }
 
 export function importJson(text) {
