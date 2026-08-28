@@ -4,7 +4,11 @@
 // 1. Abra a planilha de destino no Google Sheets.
 // 2. Menu Extensoes -> Apps Script.
 // 3. Apague o conteudo do editor e cole este arquivo inteiro.
-// 4. Confira o SHEET_ID abaixo - e o trecho da URL da planilha entre "/d/" e "/edit".
+// 4. Substitua o SHEET_ID abaixo pelo ID da SUA planilha - e o trecho da URL
+//    dela entre "/d/" e "/edit". Nao deixe o ID de verdade neste arquivo se
+//    for versiona-lo num repositorio publico (o ID sozinho nao da acesso de
+//    escrita a ninguem, mas ajuda a achar a planilha caso o compartilhamento
+//    dela esteja aberto para "qualquer pessoa com o link").
 // 5. Implantar -> Nova implantacao -> tipo "App da Web".
 //      Executar como: Eu (sua conta)
 //      Quem tem acesso: Qualquer pessoa
@@ -19,7 +23,7 @@
 // linha. Se algum dia quiser mudar o comportamento, e so no clearContents()
 // abaixo que isso acontece.
 
-var SHEET_ID = '1fritixrbcrvTx7creLzxBkj8_sfR3Bierl8gUYiFWBw';
+var SHEET_ID = 'COLE_AQUI_O_ID_DA_SUA_PLANILHA';
 
 function doPost(e) {
   try {
