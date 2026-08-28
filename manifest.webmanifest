@@ -1,7 +1,7 @@
 {
-  "name": "Gastos - dia 5 e dia 20",
+  "name": "Gastos - Cartões Itaú e MP",
   "short_name": "Gastos",
-  "description": "Controle de gastos por periodo com replicacao de parcelas.",
+  "description": "Controle de gastos por cartao, com replicacao de parcelas.",
   "lang": "pt-BR",
   "start_url": ".",
   "scope": ".",

@@ -10,20 +10,11 @@ export function isValidSheetsUrl(url) {
   return /^https:\/\/.+/.test(String(url || '').trim());
 }
 
-// Estrutura enviada ao Apps Script. As abas "legiveis" (resumo, gastos,
-// aplicacoes) sao para o usuario abrir a planilha e entender de relance; a
-// aba "json" carrega o mesmo texto do "Exportar agora" local, exatamente
-// como o app precisa para restaurar via Importar - e o unico dos dois que
-// tem fidelidade total.
+// Estrutura enviada ao Apps Script. A aba "gastos" e para o usuario abrir a
+// planilha e entender de relance; a aba "json" carrega o mesmo texto do
+// "Exportar agora" local, exatamente como o app precisa para restaurar via
+// Importar - e a unica das duas que tem fidelidade total.
 export function buildSnapshotPayload(state, exportJsonText) {
-  const overrides = Object.entries(state.income.overrides || {})
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([month, value]) => ({
-      mes: monthLabel(month),
-      [periodLabel(15)]: value.p15 != null ? formatCents(value.p15) : '',
-      [periodLabel(30)]: value.p30 != null ? formatCents(value.p30) : '',
-    }));
-
   const gastos = [...state.expenses]
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
     .map((e) => ({
@@ -35,31 +26,14 @@ export function buildSnapshotPayload(state, exportJsonText) {
       parcelas: e.installments,
     }));
 
-  const aplicacoes = [...(state.applications || [])]
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
-    .map((a) => ({
-      data: a.date,
-      descricao: a.description,
-      mes: monthLabel(a.month),
-      valor: formatCents(a.cents),
-    }));
-
-  const totalAplicado = (state.applications || []).reduce((acc, a) => acc + a.cents, 0);
-
   return {
     geradoEm: new Date().toISOString(),
     resumo: {
       mesInicialDoApp: monthLabel(state.config.startMonth),
       manterUltimosMeses: state.config.keepMonths,
-      descontarAplicacoesDoSaldo: state.config.deductApplications ? 'sim' : 'não',
-      [`recebimento ${periodLabel(15)} (padrão)`]: formatCents(state.income.default.p15),
-      [`recebimento ${periodLabel(30)} (padrão)`]: formatCents(state.income.default.p30),
       totalDeComprasRegistradas: state.expenses.length,
-      totalAplicadoAcumulado: formatCents(totalAplicado),
     },
-    recebimentosAjustados: overrides,
     gastos,
-    aplicacoes,
     json: exportJsonText,
   };
 }

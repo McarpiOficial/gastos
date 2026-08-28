@@ -2,9 +2,8 @@
 
 import { formatCents, parseValueInput } from './money.js';
 import {
-  currentMonthKey, todayIso, addMonths, monthLabel, periodLabel,
-  periodSummary, hasIncomeOverride, incomeFor, installmentAt,
-  purgeCutoff, purgePlan,
+  currentMonthKey, todayIso, addMonths, monthLabel,
+  installmentAt, purgeCutoff, purgePlan,
 } from './model.js';
 import * as store from './store.js';
 import * as ui from './ui.js';
@@ -226,94 +225,6 @@ function startListening() {
   recognizer?.start();
 }
 
-// ---------- folha de aplicacao (poupanca e afins)
-// Fica apartada dos gastos por design: nunca soma no gasto de nenhum bolso.
-
-function openApplicationSheet({ application = null } = {}) {
-  const values = application
-    ? {
-      date: application.date,
-      description: application.description,
-      valueText: formatCents(application.cents),
-    }
-    : { date: suggestedDate(), description: '', valueText: '' };
-
-  openSheet(
-    ui.renderApplicationSheet({
-      mode: application ? 'edit' : 'create',
-      monthKey: application ? application.month : currentMonth,
-      values,
-    }),
-    { kind: 'application', applicationId: application?.id || null, month: application ? application.month : currentMonth },
-  );
-}
-
-function applicationFormValues() {
-  return {
-    date: document.getElementById('a-date').value,
-    description: document.getElementById('a-desc').value.trim(),
-    cents: parseValueInput(document.getElementById('a-value').value),
-  };
-}
-
-function showApplicationError(message) {
-  const el = document.getElementById('a-error');
-  if (!el) return;
-  el.textContent = message || '';
-  el.hidden = !message;
-}
-
-function saveApplication() {
-  const v = applicationFormValues();
-  if (!v.date) return showApplicationError('Informe a data.');
-  if (!v.description) return showApplicationError('Informe a descrição.');
-  if (v.cents == null || v.cents <= 0) return showApplicationError('Informe um valor maior que zero.');
-  showApplicationError('');
-
-  if (sheetContext.applicationId) {
-    store.updateApplication(sheetContext.applicationId, v);
-    toast('Aplicação atualizada');
-  } else {
-    store.addApplication({ ...v, month: sheetContext.month });
-    toast('Aplicação registrada');
-  }
-  closeSheet();
-  render();
-  return undefined;
-}
-
-// ---------- folha de valor a receber
-
-function openIncomeSheet(period) {
-  openSheet(
-    ui.renderIncomeSheet({
-      monthKey: currentMonth,
-      period,
-      income: incomeFor(state, currentMonth, period),
-      overridden: hasIncomeOverride(state, currentMonth, period),
-    }),
-    { kind: 'income', period },
-  );
-}
-
-function saveIncome(scope) {
-  const input = document.getElementById('income-value');
-  const error = document.getElementById('income-error');
-  const cents = parseValueInput(input.value);
-  if (cents == null || cents < 0) {
-    error.textContent = 'Informe um valor válido, por exemplo 2.600,00.';
-    error.hidden = false;
-    return;
-  }
-  store.setIncome(currentMonth, sheetContext.period, cents,
-    scope === 'forward' ? store.INCOME_SCOPE.FORWARD : store.INCOME_SCOPE.MONTH);
-  closeSheet();
-  render();
-  toast(scope === 'forward'
-    ? `${periodLabel(sheetContext?.period || 15)}: replicado para os próximos meses`
-    : 'Valor ajustado só neste mês');
-}
-
 // ---------- configuracoes
 
 function openSettingsSheet() {
@@ -342,8 +253,7 @@ function confirmPurge(cutoffMonth) {
   if (currentMonth < state.config.startMonth) currentMonth = state.config.startMonth;
   closeSheet();
   render();
-  const total = removed.expenses + removed.applications;
-  toast(total ? `${total} registro${total === 1 ? '' : 's'} antigo${total === 1 ? '' : 's'} removido${total === 1 ? '' : 's'}` : 'Nada para remover');
+  toast(removed ? `${removed} registro${removed === 1 ? '' : 's'} antigo${removed === 1 ? '' : 's'} removido${removed === 1 ? '' : 's'}` : 'Nada para remover');
 }
 
 // ---------- backup
@@ -442,9 +352,6 @@ screen.addEventListener('click', (event) => {
   const period = Number(target.dataset.period);
 
   switch (target.dataset.action) {
-    case 'income':
-      openIncomeSheet(period);
-      break;
     case 'add':
       openExpenseSheet({ period });
       break;
@@ -459,14 +366,6 @@ screen.addEventListener('click', (event) => {
       openSheet(ui.renderEntrySheet({ entry, expense }), { kind: 'entry' });
       break;
     }
-    case 'apply':
-      openApplicationSheet({});
-      break;
-    case 'application': {
-      const application = store.findApplication(target.dataset.id);
-      if (application) openSheet(ui.renderApplicationEntrySheet(application), { kind: 'application-entry' });
-      break;
-    }
     default:
       break;
   }
@@ -479,9 +378,6 @@ sheet.addEventListener('click', (event) => {
   switch (target.dataset.action) {
     case 'close':
       closeSheet();
-      break;
-    case 'income-save':
-      saveIncome(target.dataset.scope);
       break;
     case 'expense-save':
       saveExpense();
@@ -521,29 +417,6 @@ sheet.addEventListener('click', (event) => {
     case 'import':
       fileInput.click();
       break;
-    case 'application-save':
-      saveApplication();
-      break;
-    case 'application-edit': {
-      const application = store.findApplication(target.dataset.id);
-      if (application) openApplicationSheet({ application });
-      break;
-    }
-    case 'application-delete':
-      openSheet(ui.renderConfirmSheet({
-        title: 'Excluir aplicação',
-        message: 'O registro será removido. Não há como desfazer.',
-        confirmLabel: 'Excluir',
-        action: 'application-delete-confirm',
-        payload: target.dataset.id,
-      }));
-      break;
-    case 'application-delete-confirm':
-      store.removeApplication(target.dataset.payload);
-      closeSheet();
-      render();
-      toast('Aplicação excluída');
-      break;
     case 'purge-preview':
       openPurgePreview();
       break;
@@ -562,18 +435,11 @@ sheet.addEventListener('input', (event) => {
   if (['f-value', 'f-parcels'].includes(event.target.id)) updatePreview();
   if (event.target.id === 'f-error') return;
   showFormError('');
-  if (event.target.id === 'a-error') return;
-  showApplicationError('');
 });
 
 // Reformata o valor ao sair do campo: "1500" vira "1.500,00".
 sheet.addEventListener('focusout', (event) => {
-  if (event.target.id === 'a-value') {
-    const cents = parseValueInput(event.target.value);
-    if (cents != null && cents > 0) event.target.value = formatCents(cents);
-    return;
-  }
-  if (!['f-value', 'income-value'].includes(event.target.id)) return;
+  if (event.target.id !== 'f-value') return;
   const cents = parseValueInput(event.target.value);
   if (cents != null && cents > 0) event.target.value = formatCents(cents);
 });
@@ -581,10 +447,7 @@ sheet.addEventListener('focusout', (event) => {
 // Configuracoes: cada controle persiste sozinho, sem botao "salvar" a parte.
 sheet.addEventListener('change', (event) => {
   const { id } = event.target;
-  if (id === 'cfg-deduct') {
-    store.setConfig({ deductApplications: event.target.checked });
-    render();
-  } else if (id === 'cfg-keep-months') {
+  if (id === 'cfg-keep-months') {
     const v = Math.max(1, Math.min(36, Math.trunc(Number(event.target.value)) || 1));
     event.target.value = String(v);
     store.setConfig({ keepMonths: v });
@@ -643,8 +506,8 @@ store.subscribe((next) => { state = next; });
 
 render();
 
-if (!state.expenses.length && !state.income.default.p15 && !state.income.default.p30) {
-  toast('Comece informando quanto recebe no dia 5 e no dia 20');
+if (!state.expenses.length) {
+  toast('Lance seu primeiro gasto em Dia 2 ou Dia 8');
 } else {
   checkBackupReminder();
 }
@@ -657,4 +520,4 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
 }
 
 // Exposto para a suite de testes em tests.html.
-window.__gastos = { periodSummary, parseFala, state: () => state };
+window.__gastos = { parseFala, state: () => state };

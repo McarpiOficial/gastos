@@ -86,17 +86,7 @@ html, body {
 
 main { padding: 12px 12px calc(24px + var(--safe-b)); max-width: 560px; margin: 0 auto; }
 
-.summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
-
-.metric { background: var(--surface-alt); border-radius: var(--radius); padding: 10px 12px; }
-.metric span { display: block; font-size: 12px; color: var(--text-soft); }
-.metric strong { display: block; margin-top: 2px; font-size: 19px; font-weight: 500; font-variant-numeric: tabular-nums; }
-.metric--good { background: var(--accent-bg); }
-.metric--good span, .metric--good strong { color: var(--accent); }
-.metric--bad { background: var(--danger-bg); }
-.metric--bad span, .metric--bad strong { color: var(--danger); }
-
-/* ---------- bolso (agrupamento do dia 15 / dia 30) */
+/* ---------- bolso (agrupamento por cartao/fatura) */
 
 .pocket {
   background: var(--surface);
@@ -115,25 +105,6 @@ main { padding: 12px 12px calc(24px + var(--safe-b)); max-width: 560px; margin: 
 }
 
 .pocket-head h2 { margin: 0; font-size: 16px; font-weight: 500; }
-
-.income-btn {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 34px;
-  padding: 4px 10px;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: transparent;
-  color: var(--text);
-  font: inherit;
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-  cursor: pointer;
-}
-.income-btn:active { background: var(--surface-alt); }
-.income-btn .icon { color: var(--text-faint); }
-.income-btn.is-empty { color: var(--accent); border-color: var(--accent); }
 
 .pocket-bar {
   display: flex;
@@ -184,17 +155,6 @@ main { padding: 12px 12px calc(24px + var(--safe-b)); max-width: 560px; margin: 
 .pocket-empty { padding: 12px; border-top: 1px solid var(--line); font-size: 13px; color: var(--text-faint); }
 
 .pocket-actions { display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line); }
-
-/* ---------- cartao de aplicacoes (poupanca), apartado dos bolsos */
-
-.pocket--apps .pocket-head h2 {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 15px;
-}
-.pocket--apps .pocket-head h2 .icon { color: var(--text-soft); }
-.pocket-total { font-size: 12px; color: var(--text-soft); font-variant-numeric: tabular-nums; }
 
 /* ---------- botoes */
 
@@ -281,7 +241,7 @@ input[type="text"], input[type="date"], input[type="number"], textarea, select {
   font-size: 16px;
 }
 textarea { min-height: 76px; resize: vertical; line-height: 1.4; }
-input:focus-visible, textarea:focus-visible, .btn:focus-visible, .entry:focus-visible, .icon-btn:focus-visible, .income-btn:focus-visible {
+input:focus-visible, textarea:focus-visible, .btn:focus-visible, .entry:focus-visible, .icon-btn:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }

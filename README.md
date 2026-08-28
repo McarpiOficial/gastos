@@ -1,24 +1,22 @@
-# Gastos — dia 5 e dia 20
+# Gastos — Dia 2 (Itaú) e Dia 8 (MP)
 
-App de controle financeiro pessoal. Cada mês tem dois agrupamentos ("bolsos"),
-um para o recebimento do **dia 5** e um para o **dia 20**, cada qual com seu
-valor a receber, seus gastos e seu saldo.
+App de controle de gastos por cartão. Cada mês tem dois agrupamentos
+("bolsos"), um para o **Dia 2 - Cartão Itaú** e um para o **Dia 8 - Cartão
+MP**, cada qual mostrando só o total gasto e a lista das compras lançadas
+naquele agrupamento.
 
 PWA sem build e sem dependências: HTML, CSS e JavaScript puro, dados no próprio
 aparelho (`localStorage`), sem servidor e sem login.
 
 ## Como usar
 
-1. Toque no valor a receber de cada bolso e informe quanto entra.
-   Escolha **"Este e os próximos"** para o valor valer também nos meses
-   seguintes, ou **"Só este mês"** para um ajuste pontual.
-2. Toque em **Digitar** ou **Falar** *dentro do bolso* onde o gasto deve entrar.
-   É o bolso clicado que define se a compra cai no dia 5 ou no dia 20.
-3. Informe data, descrição, valor **total** da compra e o número de parcelas.
+1. Toque em **Digitar** ou **Falar** *dentro do bolso* onde o gasto deve entrar.
+   É o bolso clicado que define se a compra cai no Dia 2 ou no Dia 8.
+2. Informe data, descrição, valor **total** da compra e o número de parcelas.
    O valor é sempre o total: `100,00` em `3x` vira 33,33 / 33,33 / 33,34.
-4. As parcelas seguintes aparecem sozinhas nos próximos meses, no mesmo bolso.
+3. As parcelas seguintes aparecem sozinhas nos próximos meses, no mesmo bolso.
    A última parcela fica **em vermelho** para avisar que o débito encerra ali.
-5. Toque numa linha para editar ou excluir a compra — muda em todos os meses.
+4. Toque numa linha para editar ou excluir a compra — muda em todos os meses.
 
 ### Falando o gasto
 
@@ -45,7 +43,7 @@ npx --yes serve C:\Projetos\Gastos -l 5199
 ```
 
 Abra `http://localhost:5199`. A suíte de testes fica em
-`http://localhost:5199/tests.html` (94 asserções, sem instalar nada).
+`http://localhost:5199/tests.html` (77 asserções, sem instalar nada).
 
 ## Instalar no celular
 
@@ -64,8 +62,6 @@ O app passa a abrir em tela cheia e funciona offline.
 
 O ícone de engrenagem no topo abre:
 
-- **Aplicações** — liga/desliga se o valor aplicado (ver abaixo) desconta do
-  saldo do mês.
 - **Gastos antigos** — limpa o aparelho do que já passou.
 - **Backup local** — exportar, importar e o lembrete automático (ver abaixo).
 - **Backup automático na planilha** — envia uma foto dos dados para o Google
@@ -74,17 +70,6 @@ O ícone de engrenagem no topo abre:
 Não existe um botão de "apagar tudo": é um risco desnecessário para um app que
 guarda dados só no aparelho, sem conta e sem recuperação. Se algum dia precisar
 zerar, basta limpar os dados do site nas configurações do navegador.
-
-## Aplicações (poupança e afins)
-
-Cada mês tem um terceiro cartão, abaixo dos dois bolsos, para registrar valor
-guardado — poupança, CDB, o que for. Ele **não entra na conta de nenhum
-bolso**: é só para acompanhar quanto você está aplicando, apartado dos gastos.
-
-Por padrão o saldo do mês também ignora esse valor. Em Configurações →
-Aplicações dá para ligar **"Descontar aplicações do saldo do mês"**, e aí o
-saldo do mês (só ele, os bolsos continuam intactos) passa a descontar o que
-foi aplicado.
 
 ## Limpar gastos antigos
 
@@ -138,7 +123,7 @@ login do Google dentro do app, sem chave de API exposta em lugar nenhum.
 6. Copie a **URL do app da Web** (termina em `/exec`) e cole em
    Configurações → Backup automático na planilha → "Endereço da planilha".
 7. Toque em **"Enviar agora"** para testar. Se a planilha ganhar as abas
-   `Resumo`, `Gastos`, `Aplicações` e `JSON`, está funcionando.
+   `Resumo`, `Gastos` e `JSON`, está funcionando.
 8. Ligue **"Enviar automaticamente"** e escolha o intervalo.
 
 Esse endereço funciona como uma chave de escrita só daquela planilha — não dá
@@ -166,14 +151,14 @@ indica que o script realmente recusou, e aí vale revisar os passos acima.
 | Arquivo | Papel |
 |---|---|
 | `js/money.js` | centavos ↔ texto, divisão de parcelas |
-| `js/model.js` | meses, parcelas, saldos, aplicações, limpeza — o núcleo |
+| `js/model.js` | meses, parcelas, totais por bolso, limpeza — o núcleo |
 | `js/store.js` | localStorage, schema versionado, exportar/importar |
 | `js/ui.js` | renderização das telas |
 | `js/voice.js` | reconhecimento de fala e interpretação da frase |
 | `js/sheets.js` | monta a foto dos dados e envia para o Apps Script |
 | `js/app.js` | navegação e delegação de eventos |
 | `tools/apps-script-backup.gs` | código a colar no Apps Script da planilha |
-| `tests.html` | asserções de parcelas, valores, meses, fala, aplicações, limpeza e planilha |
+| `tests.html` | asserções de parcelas, valores, meses, fala, limpeza e planilha |
 
 Parcelas **não são armazenadas**: guarda-se uma compra e o mês/bolso de cada
 parcela é calculado na hora. Por isso editar a compra corrige todos os meses de

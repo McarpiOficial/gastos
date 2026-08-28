@@ -2,8 +2,8 @@
 
 import { formatCents } from './money.js';
 import {
-  PERIODS, periodLabel, monthSummary, monthLabel, monthShort,
-  formatIsoDate, installmentPreview, todayIso, applicationsIn,
+  periodLabel, monthSummary, monthLabel, monthShort,
+  formatIsoDate, installmentPreview, todayIso,
 } from './model.js';
 
 export function esc(value) {
@@ -46,8 +46,7 @@ function renderEntry(entry, monthKey) {
 }
 
 function renderPocket(summary, monthKey) {
-  const { period, entries, income, spent, balance, overridden } = summary;
-  const incomeText = income > 0 ? formatCents(income) : 'informar';
+  const { period, entries, spent } = summary;
   const list = entries.length
     ? `<ul class="entries">${entries.map((e) => renderEntry(e, monthKey)).join('')}</ul>`
     : '<p class="pocket-empty">Nenhum gasto neste período.</p>';
@@ -56,16 +55,9 @@ function renderPocket(summary, monthKey) {
     <section class="pocket" data-period="${period}">
       <div class="pocket-head">
         <h2>${periodLabel(period)}</h2>
-        <button type="button" class="income-btn${income > 0 ? '' : ' is-empty'}"
-                data-action="income" data-period="${period}"
-                aria-label="Valor a receber no ${periodLabel(period).toLowerCase()}">
-          ${esc(incomeText)}
-          ${overridden ? icon('pencil', 'icon icon--sm') : icon('repeat', 'icon icon--sm')}
-        </button>
       </div>
       <div class="pocket-bar">
-        <span>Gastos <b>${formatCents(spent)}</b></span>
-        <span>Saldo <b class="${balance < 0 ? 'neg' : ''}">${formatCents(balance)}</b></span>
+        <span>Total gasto <b>${formatCents(spent)}</b></span>
       </div>
       ${list}
       <div class="pocket-actions">
@@ -79,124 +71,9 @@ function renderPocket(summary, monthKey) {
     </section>`;
 }
 
-function renderApplicationRow(app) {
-  return `
-    <li>
-      <button type="button" class="entry" data-action="application" data-id="${esc(app.id)}">
-        <span class="entry-date">${formatIsoDate(app.date, { short: true })}</span>
-        <span class="entry-main">
-          <span class="entry-desc">${esc(app.description)}</span>
-        </span>
-        <span class="entry-value">${formatCents(app.cents)}</span>
-      </button>
-    </li>`;
-}
-
-function renderApplicationsCard(state, monthKey, appliedAccumulated) {
-  const apps = applicationsIn(state, monthKey);
-  const total = apps.reduce((a, x) => a + x.cents, 0);
-  const list = apps.length
-    ? `<ul class="entries">${apps.map(renderApplicationRow).join('')}</ul>`
-    : '<p class="pocket-empty">Nenhum valor aplicado neste mês.</p>';
-  return `
-    <section class="pocket pocket--apps">
-      <div class="pocket-head">
-        <h2>${icon('safe', 'icon icon--sm')} Aplicações</h2>
-        <span class="pocket-total">acumulado ${formatCents(appliedAccumulated)}</span>
-      </div>
-      <div class="pocket-bar">
-        <span>Aplicado no mês <b>${formatCents(total)}</b></span>
-      </div>
-      ${list}
-      <div class="pocket-actions">
-        <button type="button" class="btn" data-action="apply">
-          ${icon('plus')} Registrar aplicação
-        </button>
-      </div>
-    </section>`;
-}
-
 export function renderMonth(state, monthKey) {
   const s = monthSummary(state, monthKey);
-  const balanceClass = s.balance < 0 ? 'metric metric--bad' : 'metric metric--good';
-  const deductNote = s.applied > 0
-    ? `<p class="hint" style="margin:-6px 0 12px">${s.deductApplications
-      ? `Saldo já descontando ${formatCents(s.applied)} aplicado este mês.`
-      : `Saldo não desconta os ${formatCents(s.applied)} aplicados este mês — ajuste em Configurações.`}</p>`
-    : '';
-  return `
-    <div class="summary">
-      <div class="metric">
-        <span>A receber no mês</span>
-        <strong>${formatCents(s.income)}</strong>
-      </div>
-      <div class="${balanceClass}">
-        <span>Saldo do mês</span>
-        <strong>${formatCents(s.balance)}</strong>
-      </div>
-    </div>
-    ${deductNote}
-    ${s.periods.map((p) => renderPocket(p, monthKey)).join('')}
-    ${renderApplicationsCard(state, monthKey, s.appliedAccumulated)}`;
-}
-
-// ---------- folha: aplicacao (poupanca e afins)
-
-export function renderApplicationSheet({ mode, monthKey, values }) {
-  const v = values || {};
-  const isEdit = mode === 'edit';
-  return `
-    <div class="sheet-head">
-      <div>
-        <h2 id="sheet-title">${isEdit ? 'Editar aplicação' : 'Registrar aplicação'}</h2>
-        <p>${esc(monthLabel(monthKey))} · fica à parte, não entra nos gastos</p>
-      </div>
-      <button type="button" class="icon-btn" data-action="close" aria-label="Fechar">${icon('x')}</button>
-    </div>
-    <div class="sheet-body">
-      <div class="field">
-        <label for="a-date">Data</label>
-        <input type="date" id="a-date" value="${esc(v.date || todayIso())}">
-      </div>
-      <div class="field">
-        <label for="a-desc">Descrição</label>
-        <input type="text" id="a-desc" autocomplete="off"
-               placeholder="Poupança, CDB, Tesouro..." value="${esc(v.description || '')}">
-      </div>
-      <div class="field">
-        <label for="a-value">Valor aplicado</label>
-        <input type="text" id="a-value" inputmode="decimal" autocomplete="off"
-               placeholder="0,00" value="${esc(v.valueText || '')}">
-      </div>
-      <p class="error" id="a-error" hidden></p>
-      <div class="sheet-foot" style="padding-left:0;padding-right:0">
-        <button type="button" class="btn" data-action="close">Cancelar</button>
-        <button type="button" class="btn btn--solid btn--grow" data-action="application-save">
-          ${icon('check')} Salvar
-        </button>
-      </div>
-    </div>`;
-}
-
-export function renderApplicationEntrySheet(app) {
-  return `
-    <div class="sheet-head">
-      <div>
-        <h2 id="sheet-title">${esc(app.description)}</h2>
-        <p>${formatIsoDate(app.date)} · ${formatCents(app.cents)}</p>
-      </div>
-      <button type="button" class="icon-btn" data-action="close" aria-label="Fechar">${icon('x')}</button>
-    </div>
-    <div class="sheet-body" style="padding-bottom:0">
-      <ul class="options">
-        <li><button type="button" data-action="application-edit" data-id="${esc(app.id)}">
-          ${icon('pencil')} Editar
-        </button></li>
-        <li><button type="button" class="is-danger" data-action="application-delete" data-id="${esc(app.id)}">
-          ${icon('trash')} Excluir
-        </button></li>
-      </ul>
-    </div>`;
+  return s.periods.map((p) => renderPocket(p, monthKey)).join('');
 }
 
 // ---------- preview de parcelas
@@ -218,33 +95,6 @@ export function renderPreview({ totalCents, installments, month }) {
     .map((p) => `<span class="${p.isFinalWarning ? 'last' : ''}">${esc(p.label)} · ${formatCents(p.cents)}${p.isFinalWarning ? ' (última)' : ''}</span>`)
     .join('');
   return `${head} — total ${formatCents(totalCents)}<span class="chips">${chips}</span>`;
-}
-
-// ---------- folha: valor a receber
-
-export function renderIncomeSheet({ monthKey, period, income, overridden }) {
-  return `
-    <div class="sheet-head">
-      <div>
-        <h2 id="sheet-title">A receber · ${periodLabel(period)}</h2>
-        <p>${esc(monthLabel(monthKey))}${overridden ? ' · ajustado só neste mês' : ''}</p>
-      </div>
-      <button type="button" class="icon-btn" data-action="close" aria-label="Fechar">${icon('x')}</button>
-    </div>
-    <div class="sheet-body">
-      <div class="field">
-        <label for="income-value">Valor a receber</label>
-        <input type="text" id="income-value" inputmode="decimal" autocomplete="off"
-               placeholder="0,00" value="${income > 0 ? formatCents(income) : ''}">
-      </div>
-      <p class="error" id="income-error" hidden></p>
-      <p class="hint">"Este e os próximos" replica o valor para todos os meses seguintes.
-      "Só este mês" ajusta apenas ${esc(monthLabel(monthKey))}.</p>
-      <div class="sheet-foot" style="padding-left:0;padding-right:0">
-        <button type="button" class="btn" data-action="income-save" data-scope="month">Só este mês</button>
-        <button type="button" class="btn btn--solid btn--grow" data-action="income-save" data-scope="forward">Este e os próximos</button>
-      </div>
-    </div>`;
 }
 
 // ---------- folha: gasto
@@ -389,11 +239,6 @@ export function renderSettingsSheet(state) {
         </button></li>
       </ul>
 
-      <h3 class="settings-section">${icon('safe', 'icon icon--sm')} Aplicações</h3>
-      ${toggle('cfg-deduct', state.config.deductApplications,
-    'Descontar aplicações do saldo do mês',
-    'Por padrão o valor aplicado fica à parte, só para acompanhar. Ligue para ele reduzir o saldo do mês.')}
-
       <h3 class="settings-section">${icon('broom', 'icon icon--sm')} Gastos antigos</h3>
       <p class="hint">Remove do aparelho as compras já encerradas antes do mês escolhido, para não
       acumular espaço com o que já passou. Compras com parcela ainda em aberto não são removidas.</p>
@@ -456,10 +301,7 @@ export function renderPurgePreviewSheet(plan) {
         <p class="hint">Não há registros encerrados antes de ${esc(plan.cutoffLabel)}.</p>
       </div>`;
   }
-  const items = [
-    ...plan.expenses.map((e) => `${esc(e.description)} · ${formatCents(e.totalCents)}${e.installments > 1 ? ` (${e.installments}x)` : ''}`),
-    ...plan.applications.map((a) => `${esc(a.description)} · ${formatCents(a.cents)} (aplicação)`),
-  ];
+  const items = plan.expenses.map((e) => `${esc(e.description)} · ${formatCents(e.totalCents)}${e.installments > 1 ? ` (${e.installments}x)` : ''}`);
   const keptNote = plan.keepRunning.length
     ? `<p class="hint">${plan.keepRunning.length} compra${plan.keepRunning.length === 1 ? '' : 's'} começada${plan.keepRunning.length === 1 ? '' : 's'} antes disso fica${plan.keepRunning.length === 1 ? '' : 'm'}, porque ainda ${plan.keepRunning.length === 1 ? 'tem parcela' : 'têm parcelas'} em aberto.</p>`
     : '';
@@ -501,4 +343,4 @@ export function renderConfirmSheet({ title, message, confirmLabel, action, paylo
     </div>`;
 }
 
-export { PERIODS, monthLabel };
+export { monthLabel };

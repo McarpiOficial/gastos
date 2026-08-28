@@ -1,9 +1,9 @@
 // Estado em localStorage. Schema versionado, com migracao e backup em arquivo.
 
-import { currentMonthKey, periodKey, monthKeyOf, todayIso } from './model.js';
+import { currentMonthKey, monthKeyOf, todayIso } from './model.js';
 
 const STORAGE_KEY = 'gastos.state';
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 // null = lembrete de backup desligado. Numero = a cada quantos dias avisar.
 const DEFAULT_BACKUP_REMINDER_DAYS = 10;
@@ -18,7 +18,6 @@ export function defaultState() {
     version: SCHEMA_VERSION,
     config: {
       startMonth: currentMonthKey(),
-      deductApplications: false,
       keepMonths: DEFAULT_KEEP_MONTHS,
       backupReminderDays: DEFAULT_BACKUP_REMINDER_DAYS,
       lastBackupAt: null,
@@ -29,9 +28,7 @@ export function defaultState() {
       lastSheetsSyncStatus: null,
       lastSheetsSyncError: null,
     },
-    income: { default: { p15: 0, p30: 0 }, overrides: {} },
     expenses: [],
-    applications: [],
     seq: 0,
   };
 }
@@ -43,7 +40,6 @@ function migrate(raw) {
     version: SCHEMA_VERSION,
     config: {
       startMonth: raw.config?.startMonth || base.config.startMonth,
-      deductApplications: !!raw.config?.deductApplications,
       keepMonths: Math.max(1, Math.trunc(Number(raw.config?.keepMonths)) || DEFAULT_KEEP_MONTHS),
       backupReminderDays: raw.config?.backupReminderDays === null
         ? null
@@ -62,26 +58,9 @@ function migrate(raw) {
         ? String(raw.config.lastSheetsSyncError).slice(0, 200)
         : null,
     },
-    income: {
-      default: {
-        p15: Number(raw.income?.default?.p15) || 0,
-        p30: Number(raw.income?.default?.p30) || 0,
-      },
-      overrides: {},
-    },
     expenses: [],
-    applications: [],
     seq: Number(raw.seq) || 0,
   };
-  const overrides = raw.income?.overrides || {};
-  for (const [month, value] of Object.entries(overrides)) {
-    if (!/^\d{4}-\d{2}$/.test(month) || !value) continue;
-    const clean = {};
-    for (const k of ['p15', 'p30']) {
-      if (Number.isFinite(Number(value[k]))) clean[k] = Math.trunc(Number(value[k]));
-    }
-    if (Object.keys(clean).length) next.income.overrides[month] = clean;
-  }
   for (const e of Array.isArray(raw.expenses) ? raw.expenses : []) {
     if (!e || !e.description || !e.date) continue;
     const period = Number(e.period) === 15 ? 15 : 30;
@@ -95,18 +74,8 @@ function migrate(raw) {
       installments: Math.min(60, Math.max(1, Math.trunc(Number(e.installments) || 1))),
     });
   }
-  for (const a of Array.isArray(raw.applications) ? raw.applications : []) {
-    if (!a || !a.description || !a.date || !(Number(a.cents) > 0)) continue;
-    next.applications.push({
-      id: String(a.id || `a_${++next.seq}`),
-      description: String(a.description).trim(),
-      date: String(a.date),
-      month: /^\d{4}-\d{2}$/.test(a.month || '') ? a.month : monthKeyOf(a.date),
-      cents: Math.trunc(Number(a.cents)),
-    });
-  }
-  const maxSeq = [...next.expenses, ...next.applications].reduce((acc, e) => {
-    const m = /^[ea]_(\d+)$/.exec(e.id);
+  const maxSeq = next.expenses.reduce((acc, e) => {
+    const m = /^e_(\d+)$/.exec(e.id);
     return m ? Math.max(acc, Number(m[1])) : acc;
   }, next.seq);
   next.seq = maxSeq;
@@ -142,32 +111,6 @@ function persist() {
 export function subscribe(fn) {
   listeners.add(fn);
   return () => listeners.delete(fn);
-}
-
-// ---------- valores a receber
-
-export const INCOME_SCOPE = { MONTH: 'month', FORWARD: 'forward' };
-
-export function setIncome(monthKey, period, cents, scope) {
-  const key = periodKey(period);
-  const value = Math.max(0, Math.trunc(cents || 0));
-  if (scope === INCOME_SCOPE.FORWARD) {
-    state.income.default[key] = value;
-    // O padrao passa a valer daqui pra frente: overrides futuros do mesmo
-    // bolso deixariam o valor antigo grudado, entao saem.
-    for (const month of Object.keys(state.income.overrides)) {
-      if (month >= monthKey) {
-        delete state.income.overrides[month][key];
-        if (!Object.keys(state.income.overrides[month]).length) {
-          delete state.income.overrides[month];
-        }
-      }
-    }
-  } else {
-    state.income.overrides[monthKey] = state.income.overrides[monthKey] || {};
-    state.income.overrides[monthKey][key] = value;
-  }
-  persist();
 }
 
 // ---------- gastos
@@ -219,45 +162,6 @@ export function setStartMonth(monthKey) {
   persist();
 }
 
-// ---------- valor aplicado (poupanca e afins)
-// Fica num array apartado dos gastos: nunca entra na soma de nenhum bolso.
-
-export function addApplication({ description, date, month, cents }) {
-  const application = {
-    id: `a_${++state.seq}`,
-    description: String(description).trim(),
-    date,
-    month: month || monthKeyOf(date),
-    cents: Math.trunc(cents),
-  };
-  state.applications.push(application);
-  persist();
-  return application;
-}
-
-export function updateApplication(id, patch) {
-  const application = state.applications.find((a) => a.id === id);
-  if (!application) return null;
-  if (patch.description != null) application.description = String(patch.description).trim();
-  if (patch.date != null) application.date = patch.date;
-  if (patch.month != null) application.month = patch.month;
-  if (patch.cents != null) application.cents = Math.trunc(patch.cents);
-  persist();
-  return application;
-}
-
-export function removeApplication(id) {
-  const i = state.applications.findIndex((a) => a.id === id);
-  if (i < 0) return false;
-  state.applications.splice(i, 1);
-  persist();
-  return true;
-}
-
-export function findApplication(id) {
-  return state.applications.find((a) => a.id === id) || null;
-}
-
 // ---------- configuracao
 
 export function setConfig(patch) {
@@ -270,24 +174,17 @@ export function setConfig(patch) {
 // em aberto no mes atual fica, senao o mes corrente perderia o debito.
 
 export function purgeBefore(cutoffMonth) {
-  const before = { expenses: state.expenses.length, applications: state.applications.length };
+  const before = state.expenses.length;
   state.expenses = state.expenses.filter((e) => {
     const runsUntil = addMonthsLocal(e.month, Math.max(1, e.installments) - 1);
     return !(e.month <= cutoffMonth && runsUntil <= cutoffMonth);
   });
-  state.applications = state.applications.filter((a) => a.month > cutoffMonth);
-  for (const month of Object.keys(state.income.overrides)) {
-    if (month <= cutoffMonth) delete state.income.overrides[month];
-  }
   if (state.config.startMonth <= cutoffMonth) {
     // A navegacao para tras nao pode ir alem do que ainda existe.
     state.config.startMonth = addMonthsLocal(cutoffMonth, 1);
   }
   state.config.lastPurgeAt = cutoffMonth;
-  const removed = {
-    expenses: before.expenses - state.expenses.length,
-    applications: before.applications - state.applications.length,
-  };
+  const removed = before - state.expenses.length;
   persist();
   return removed;
 }
@@ -323,9 +220,10 @@ export function markSheetsSync(status, error = null) {
 
 export function importJson(text) {
   const parsed = JSON.parse(text);
-  const migrated = migrate(parsed);
-  if (!migrated.expenses && !migrated.income) throw new Error('Arquivo invalido');
-  state = migrated;
+  if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.expenses)) {
+    throw new Error('Arquivo inválido');
+  }
+  state = migrate(parsed);
   persist();
   return state;
 }

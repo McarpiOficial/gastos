@@ -34,9 +34,7 @@ function doPost(e) {
     for (var key in payload.resumo) resumo[key] = payload.resumo[key];
 
     writeKeyValue(ss, 'Resumo', resumo);
-    writeTable(ss, 'Recebimentos ajustados', payload.recebimentosAjustados || []);
     writeTable(ss, 'Gastos', payload.gastos || []);
-    writeTable(ss, 'Aplicações', payload.aplicacoes || []);
     writeJson(ss, 'JSON', payload.json || '');
 
     return respond({ ok: true, updatedAt: new Date().toISOString() });
@@ -95,7 +93,7 @@ function writeTable(ss, name, list) {
   sh.getRange(1, 1, rows.length, headers.length).setValues(rows);
 }
 
-// Aba com o mesmo texto do "Exportar agora" local - e o unico dos quatro
+// Aba com o mesmo texto do "Exportar agora" local - e a unica das tres abas
 // que tem fidelidade total: colar esse texto em Importar, no app, restaura
 // exatamente esta posicao (mais util se o celular for perdido ou trocado).
 function writeJson(ss, name, jsonText) {

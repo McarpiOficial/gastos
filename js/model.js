@@ -1,15 +1,12 @@
-// Nucleo do app: matematica de meses, expansao de parcelas e saldos.
+// Nucleo do app: matematica de meses, expansao de parcelas e totais por bolso.
 // Parcelas NAO sao armazenadas - sao derivadas de um unico registro por compra.
 
 import { splitInstallments } from './money.js';
 
 export const PERIODS = [15, 30];
-export const periodKey = (p) => (p === 15 ? 'p15' : 'p30');
-// So o rotulo mudou de dia 15/30 para dia 5/20 — o numero do periodo em si
-// continua 15/30 por baixo, porque e ele que rege toda a matematica de mes
-// (chave de armazenamento p15/p30, "dia 30" caindo no ultimo dia de fevereiro
-// etc). Trocar aqui e so trocar o texto mostrado.
-const PERIOD_LABELS = { 15: 'Dia 5', 30: 'Dia 20' };
+// O numero do periodo (15/30) e so uma chave interna de agrupamento - nao
+// representa mais dia de recebimento nenhum, so o rotulo mostrado ao usuario.
+const PERIOD_LABELS = { 15: 'Dia 2 - Cartão Itaú', 30: 'Dia 8 - Cartão MP' };
 export const periodLabel = (p) => PERIOD_LABELS[p] || `Dia ${p}`;
 
 const MESES = ['janeiro','fevereiro','marco','abril','maio','junho',
@@ -56,17 +53,6 @@ export function monthLabel(monthKey) {
 export function monthShort(monthKey) {
   const [y, m] = monthKey.split('-').map(Number);
   return `${MESES_CURTO[m - 1]}/${String(y).slice(2)}`;
-}
-
-export function lastDayOfMonth(monthKey) {
-  const [y, m] = monthKey.split('-').map(Number);
-  return new Date(y, m, 0).getDate();
-}
-
-// Data efetiva do periodo. "Dia 30" em fevereiro cai no ultimo dia do mes.
-export function periodDate(monthKey, period) {
-  const day = Math.min(period, lastDayOfMonth(monthKey));
-  return `${monthKey}-${String(day).padStart(2, '0')}`;
 }
 
 export function formatIsoDate(iso, { short = false } = {}) {
@@ -123,75 +109,25 @@ export function sumCents(entries) {
   return entries.reduce((acc, e) => acc + e.cents, 0);
 }
 
-// ---------- valores a receber e saldos
-
-// A replicacao para os meses futuros acontece aqui e somente aqui:
-// nao existindo override para o mes, vale o valor padrao.
-export function incomeFor(state, monthKey, period) {
-  const key = periodKey(period);
-  const override = state.income.overrides?.[monthKey];
-  if (override && Number.isFinite(override[key])) return override[key];
-  return state.income.default[key] || 0;
-}
-
-export function hasIncomeOverride(state, monthKey, period) {
-  const override = state.income.overrides?.[monthKey];
-  return !!(override && Number.isFinite(override[periodKey(period)]));
-}
+// ---------- sumarizacao por bolso e por mes
 
 export function periodSummary(state, monthKey, period) {
   const entries = entriesFor(state, monthKey, period);
-  const income = incomeFor(state, monthKey, period);
-  const spent = sumCents(entries);
   return {
     period,
     entries,
-    income,
-    spent,
-    balance: income - spent,
-    overridden: hasIncomeOverride(state, monthKey, period),
+    spent: sumCents(entries),
   };
 }
 
 export function monthSummary(state, monthKey) {
   const periods = PERIODS.map((p) => periodSummary(state, monthKey, p));
-  const balance = periods.reduce((a, p) => a + p.balance, 0);
-  const applied = appliedInMonth(state, monthKey);
-  const deduct = !!state.config?.deductApplications;
   return {
     monthKey,
     label: monthLabel(monthKey),
     periods,
-    income: periods.reduce((a, p) => a + p.income, 0),
     spent: periods.reduce((a, p) => a + p.spent, 0),
-    // O saldo dos bolsos nunca e afetado pelas aplicacoes; quem opta por
-    // descontar ve o desconto so no saldo do mes, que e onde ele cabe.
-    balance: deduct ? balance - applied : balance,
-    balanceBeforeApplications: balance,
-    applied,
-    appliedAccumulated: appliedUpTo(state, monthKey),
-    deductApplications: deduct,
   };
-}
-
-// ---------- valor aplicado (poupanca e afins), apartado dos gastos
-
-export function applicationsIn(state, monthKey) {
-  return (state.applications || [])
-    .filter((a) => a.month === monthKey)
-    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.id < b.id ? -1 : 1));
-}
-
-export function appliedInMonth(state, monthKey) {
-  return applicationsIn(state, monthKey).reduce((acc, a) => acc + a.cents, 0);
-}
-
-// Total guardado desde o inicio ate o mes exibido - o numero que interessa
-// para quem esta acompanhando a poupanca crescer.
-export function appliedUpTo(state, monthKey) {
-  return (state.applications || [])
-    .filter((a) => a.month <= monthKey)
-    .reduce((acc, a) => acc + a.cents, 0);
 }
 
 // ---------- limpeza de meses passados
@@ -217,16 +153,12 @@ export function purgePlan(state, cutoffMonth) {
     if (lastInstallmentMonth(expense) > cutoffMonth) keepRunning.push(expense);
     else remove.push(expense);
   }
-  const applications = (state.applications || []).filter((a) => a.month <= cutoffMonth);
-  const overrides = Object.keys(state.income.overrides || {}).filter((m) => m <= cutoffMonth);
   return {
     cutoffMonth,
     cutoffLabel: monthLabel(cutoffMonth),
     expenses: remove,
     keepRunning,
-    applications,
-    overrides,
-    nothingToDo: !remove.length && !applications.length && !overrides.length,
+    nothingToDo: !remove.length,
   };
 }
 
