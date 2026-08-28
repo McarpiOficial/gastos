@@ -359,9 +359,21 @@ function formatBackupDate(iso) {
   return formatIsoDate(iso);
 }
 
+function sheetsStatusText(config) {
+  if (!config.sheetsUrl) return 'Cole o endereço da planilha abaixo para começar.';
+  if (!config.lastSheetsSyncAt) return 'Configurado, ainda não enviado.';
+  const when = formatIsoDate(config.lastSheetsSyncAt);
+  if (config.lastSheetsSyncStatus === 'ok') return `Último envio confirmado em ${when}.`;
+  if (config.lastSheetsSyncStatus === 'error') {
+    return `Falhou em ${when}: ${config.lastSheetsSyncError || 'erro desconhecido'}.`;
+  }
+  return `Enviado em ${when} — sem confirmação de leitura (normal com o Apps Script; confira na planilha).`;
+}
+
 export function renderSettingsSheet(state) {
   const count = state.expenses.length;
   const backupOn = state.config.backupReminderDays != null;
+  const sheetsOn = state.config.sheetsAutoDays != null;
   return `
     <div class="sheet-head">
       <div>
@@ -394,7 +406,7 @@ export function renderSettingsSheet(state) {
         ${icon('broom')} Limpar gastos antigos
       </button>
 
-      <h3 class="settings-section" style="margin-top:20px">${icon('download', 'icon icon--sm')} Backup</h3>
+      <h3 class="settings-section" style="margin-top:20px">${icon('download', 'icon icon--sm')} Backup local</h3>
       <p class="hint">Último backup: ${esc(formatBackupDate(state.config.lastBackupAt))}.
       Os dados vivem só neste aparelho — sem backup, limpar o navegador apaga tudo.</p>
       <div class="sheet-foot" style="padding:0 0 14px">
@@ -406,6 +418,29 @@ export function renderSettingsSheet(state) {
         <label for="cfg-backup-days">A cada quantos dias</label>
         <input type="number" id="cfg-backup-days" inputmode="numeric" min="1" max="90" step="1"
                value="${esc(String(state.config.backupReminderDays || 10))}">
+      </div>
+
+      <h3 class="settings-section" style="margin-top:20px">${icon('cloud', 'icon icon--sm')} Backup automático na planilha</h3>
+      <p class="hint">Envia uma foto atual dos dados para uma planilha do Google Sheets — cada envio
+      sobrescreve o anterior, a planilha nunca acumula histórico. Exige um Apps Script publicado
+      na sua própria conta Google (veja o guia em tools/apps-script-backup.gs no projeto).</p>
+      <div class="field">
+        <label for="cfg-sheets-url">Endereço da planilha (URL do Apps Script)</label>
+        <input type="text" id="cfg-sheets-url" inputmode="url" autocomplete="off"
+               placeholder="https://script.google.com/macros/s/.../exec"
+               value="${esc(state.config.sheetsUrl || '')}">
+      </div>
+      <p class="error" id="cfg-sheets-url-error" hidden></p>
+      <p class="hint" id="cfg-sheets-status">${esc(sheetsStatusText(state.config))}</p>
+      <div class="sheet-foot" style="padding:0 0 14px">
+        <button type="button" class="btn" data-action="sheets-send">${icon('cloud')} Enviar agora</button>
+      </div>
+      ${toggle('cfg-sheets-on', sheetsOn, 'Enviar automaticamente',
+    'Ao abrir o app, se já tiver passado o intervalo abaixo desde o último envio.')}
+      <div class="field" id="cfg-sheets-days-field" ${sheetsOn ? '' : 'hidden'}>
+        <label for="cfg-sheets-days">A cada quantos dias</label>
+        <input type="number" id="cfg-sheets-days" inputmode="numeric" min="1" max="90" step="1"
+               value="${esc(String(state.config.sheetsAutoDays || 5))}">
       </div>
     </div>`;
 }

@@ -9,6 +9,7 @@ import {
 import * as store from './store.js';
 import * as ui from './ui.js';
 import { parseFala, speechSupported, createRecognizer } from './voice.js';
+import { buildSnapshotPayload, postSnapshot, isValidSheetsUrl } from './sheets.js';
 
 const screen = document.getElementById('screen');
 const overlay = document.getElementById('overlay');
@@ -379,6 +380,44 @@ function checkBackupReminder() {
   );
 }
 
+// ---------- backup automatico na planilha (Google Sheets)
+
+function dueSheetsBackup() {
+  const { sheetsUrl, sheetsAutoDays, lastSheetsSyncAt } = state.config;
+  if (!sheetsUrl || sheetsAutoDays == null) return false;
+  if (!lastSheetsSyncAt) return true;
+  const diffDays = Math.floor(
+    (Date.parse(`${todayIso()}T00:00:00`) - Date.parse(`${lastSheetsSyncAt}T00:00:00`)) / 86400000,
+  );
+  return diffDays >= sheetsAutoDays;
+}
+
+async function sendSnapshotToSheet({ silent } = {}) {
+  const url = state.config.sheetsUrl;
+  if (!isValidSheetsUrl(url)) {
+    if (!silent) toast('Cole o endereço da planilha em Configurações antes de enviar.');
+    return;
+  }
+  try {
+    const payload = buildSnapshotPayload(state, store.exportJson());
+    await postSnapshot(url, payload);
+    store.markSheetsSync('ok');
+    refreshSettingsSheet();
+    if (!silent) toast('Enviado para a planilha.');
+  } catch (err) {
+    store.markSheetsSync(err.unconfirmed ? 'unconfirmed' : 'error', err.message);
+    refreshSettingsSheet();
+    toast(err.unconfirmed
+      ? 'Enviado, mas sem confirmação de leitura — confira na planilha.'
+      : `Falha ao enviar: ${err.message}`);
+  }
+}
+
+function checkSheetsAutoBackup() {
+  if (!navigator.onLine || !dueSheetsBackup()) return;
+  sendSnapshotToSheet({ silent: true });
+}
+
 fileInput.addEventListener('change', async () => {
   const file = fileInput.files?.[0];
   fileInput.value = '';
@@ -511,6 +550,9 @@ sheet.addEventListener('click', (event) => {
     case 'purge-confirm':
       confirmPurge(target.dataset.payload);
       break;
+    case 'sheets-send':
+      sendSnapshotToSheet();
+      break;
     default:
       break;
   }
@@ -560,6 +602,34 @@ sheet.addEventListener('change', (event) => {
     const v = Math.max(1, Math.min(90, Math.trunc(Number(event.target.value)) || 10));
     event.target.value = String(v);
     store.setConfig({ backupReminderDays: v });
+  } else if (id === 'cfg-sheets-url') {
+    const raw = event.target.value.trim();
+    const errorEl = document.getElementById('cfg-sheets-url-error');
+    if (!raw) {
+      errorEl.hidden = true;
+      store.setConfig({ sheetsUrl: null });
+    } else if (!isValidSheetsUrl(raw)) {
+      errorEl.textContent = 'O endereço precisa começar com https://.';
+      errorEl.hidden = false;
+    } else {
+      errorEl.hidden = true;
+      event.target.value = raw;
+      store.setConfig({ sheetsUrl: raw });
+    }
+  } else if (id === 'cfg-sheets-on') {
+    const field = document.getElementById('cfg-sheets-days-field');
+    if (event.target.checked) {
+      field.hidden = false;
+      const days = Math.max(1, Math.trunc(Number(document.getElementById('cfg-sheets-days')?.value)) || 5);
+      store.setConfig({ sheetsAutoDays: days });
+    } else {
+      field.hidden = true;
+      store.setConfig({ sheetsAutoDays: null });
+    }
+  } else if (id === 'cfg-sheets-days') {
+    const v = Math.max(1, Math.min(90, Math.trunc(Number(event.target.value)) || 5));
+    event.target.value = String(v);
+    store.setConfig({ sheetsAutoDays: v });
   }
 });
 
@@ -574,10 +644,11 @@ store.subscribe((next) => { state = next; });
 render();
 
 if (!state.expenses.length && !state.income.default.p15 && !state.income.default.p30) {
-  toast('Comece informando quanto recebe no dia 15 e no dia 30');
+  toast('Comece informando quanto recebe no dia 5 e no dia 20');
 } else {
   checkBackupReminder();
 }
+checkSheetsAutoBackup();
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   window.addEventListener('load', () => {

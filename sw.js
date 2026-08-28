@@ -1,7 +1,7 @@
 // Rede primeiro, cache como rede de seguranca. Assim o app nunca serve um
 // arquivo velho quando esta online, e continua abrindo offline.
 
-const CACHE = 'gastos-v4';
+const CACHE = 'gastos-v5';
 const ASSETS = [
   '.',
   'index.html',
@@ -18,6 +18,7 @@ const ASSETS = [
   'js/model.js',
   'js/money.js',
   'js/voice.js',
+  'js/sheets.js',
 ];
 
 self.addEventListener('install', (event) => {

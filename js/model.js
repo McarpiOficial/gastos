@@ -5,7 +5,12 @@ import { splitInstallments } from './money.js';
 
 export const PERIODS = [15, 30];
 export const periodKey = (p) => (p === 15 ? 'p15' : 'p30');
-export const periodLabel = (p) => `Dia ${p}`;
+// So o rotulo mudou de dia 15/30 para dia 5/20 — o numero do periodo em si
+// continua 15/30 por baixo, porque e ele que rege toda a matematica de mes
+// (chave de armazenamento p15/p30, "dia 30" caindo no ultimo dia de fevereiro
+// etc). Trocar aqui e so trocar o texto mostrado.
+const PERIOD_LABELS = { 15: 'Dia 5', 30: 'Dia 20' };
+export const periodLabel = (p) => PERIOD_LABELS[p] || `Dia ${p}`;
 
 const MESES = ['janeiro','fevereiro','marco','abril','maio','junho',
   'julho','agosto','setembro','outubro','novembro','dezembro'];

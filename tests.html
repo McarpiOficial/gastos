@@ -25,10 +25,11 @@
 <script type="module">
 import { splitInstallments, parseValueInput, formatCents } from './js/money.js';
 import {
-  addMonths, monthDiff, periodDate, monthSummary, installmentsOf, entriesFor,
+  addMonths, monthDiff, periodDate, periodLabel, monthSummary, installmentsOf, entriesFor,
   appliedInMonth, appliedUpTo, purgeCutoff, purgePlan,
 } from './js/model.js';
 import { parseFala, wordsToNumber } from './js/voice.js';
+import { buildSnapshotPayload, isValidSheetsUrl } from './js/sheets.js';
 
 const out = document.getElementById('out');
 let pass = 0, fail = 0;
@@ -216,6 +217,46 @@ check('remove aplicação antiga junto', plan.applications.map((a) => a.id), ['a
 check('remove override de valor a receber antigo', plan.overrides, ['2026-02']);
 check('nada para limpar quando corte é antes de tudo',
   purgePlan(stPurge, '2025-01').nothingToDo, true);
+
+// ---------- rótulos dos períodos
+
+group('Rótulos dos períodos');
+check('período 15 mostra "Dia 5"', periodLabel(15), 'Dia 5');
+check('período 30 mostra "Dia 20"', periodLabel(30), 'Dia 20');
+check('dia 20 (período 30) ainda cai no fim de fevereiro', periodDate('2027-02', 30), '2027-02-28');
+
+// ---------- backup automático na planilha (Google Sheets)
+
+group('Backup na planilha');
+check('URL válida (Apps Script)', isValidSheetsUrl('https://script.google.com/macros/s/AKfycb.../exec'), true);
+check('URL sem https é inválida', isValidSheetsUrl('http://script.google.com/x'), false);
+check('URL vazia é inválida', isValidSheetsUrl(''), false);
+check('URL indefinida é inválida', isValidSheetsUrl(undefined), false);
+
+const stSnap = {
+  config: { startMonth: '2026-08', keepMonths: 4, deductApplications: false },
+  income: { default: { p15: 200000, p30: 260000 }, overrides: { '2026-09': { p30: 300000 } } },
+  expenses: [
+    { id: 'e1', description: 'Sapato', date: '2026-08-27', month: '2026-08', period: 30, totalCents: 10000, installments: 3 },
+  ],
+  applications: [
+    { id: 'a1', description: 'CDB', date: '2026-08-10', month: '2026-08', cents: 50000 },
+  ],
+};
+const snap = buildSnapshotPayload(stSnap, '{"json":"completo"}');
+check('resumo traz os recebimentos padrão nos novos rótulos',
+  [snap.resumo['recebimento Dia 5 (padrão)'], snap.resumo['recebimento Dia 20 (padrão)']],
+  ['2.000,00', '2.600,00']);
+check('recebimentos ajustados lista o override do mês',
+  snap.recebimentosAjustados, [{ mes: 'Setembro 2026', 'Dia 5': '', 'Dia 20': '3.000,00' }]);
+check('gastos trazem a compra formatada',
+  snap.gastos, [{ data: '2026-08-27', descricao: 'Sapato', mes: 'Agosto 2026', periodo: 'Dia 20', valorTotal: '100,00', parcelas: 3 }]);
+check('aplicações trazem o valor formatado',
+  snap.aplicacoes, [{ data: '2026-08-10', descricao: 'CDB', mes: 'Agosto 2026', valor: '500,00' }]);
+check('a foto carrega o mesmo texto do export local (fidelidade total)',
+  snap.json, '{"json":"completo"}');
+check('geradoEm é uma data ISO válida',
+  typeof snap.geradoEm === 'string' && !Number.isNaN(Date.parse(snap.geradoEm)), true);
 
 // ---------- resultado
 

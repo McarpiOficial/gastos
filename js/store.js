@@ -3,11 +3,12 @@
 import { currentMonthKey, periodKey, monthKeyOf, todayIso } from './model.js';
 
 const STORAGE_KEY = 'gastos.state';
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 // null = lembrete de backup desligado. Numero = a cada quantos dias avisar.
 const DEFAULT_BACKUP_REMINDER_DAYS = 10;
 const DEFAULT_KEEP_MONTHS = 4;
+const DEFAULT_SHEETS_AUTO_DAYS = 5;
 
 let state = null;
 const listeners = new Set();
@@ -22,6 +23,11 @@ export function defaultState() {
       backupReminderDays: DEFAULT_BACKUP_REMINDER_DAYS,
       lastBackupAt: null,
       lastPurgeAt: null,
+      sheetsUrl: null,
+      sheetsAutoDays: null,
+      lastSheetsSyncAt: null,
+      lastSheetsSyncStatus: null,
+      lastSheetsSyncError: null,
     },
     income: { default: { p15: 0, p30: 0 }, overrides: {} },
     expenses: [],
@@ -44,6 +50,17 @@ function migrate(raw) {
         : Math.max(1, Math.trunc(Number(raw.config?.backupReminderDays)) || DEFAULT_BACKUP_REMINDER_DAYS),
       lastBackupAt: /^\d{4}-\d{2}-\d{2}$/.test(raw.config?.lastBackupAt || '') ? raw.config.lastBackupAt : null,
       lastPurgeAt: /^\d{4}-\d{2}$/.test(raw.config?.lastPurgeAt || '') ? raw.config.lastPurgeAt : null,
+      sheetsUrl: /^https:\/\/.+/.test(raw.config?.sheetsUrl || '') ? raw.config.sheetsUrl.trim() : null,
+      sheetsAutoDays: raw.config?.sheetsAutoDays == null
+        ? null
+        : Math.max(1, Math.min(90, Math.trunc(Number(raw.config.sheetsAutoDays)) || DEFAULT_SHEETS_AUTO_DAYS)),
+      lastSheetsSyncAt: /^\d{4}-\d{2}-\d{2}$/.test(raw.config?.lastSheetsSyncAt || '') ? raw.config.lastSheetsSyncAt : null,
+      lastSheetsSyncStatus: ['ok', 'unconfirmed', 'error'].includes(raw.config?.lastSheetsSyncStatus)
+        ? raw.config.lastSheetsSyncStatus
+        : null,
+      lastSheetsSyncError: raw.config?.lastSheetsSyncError
+        ? String(raw.config.lastSheetsSyncError).slice(0, 200)
+        : null,
     },
     income: {
       default: {
@@ -291,6 +308,16 @@ export function exportJson() {
 
 export function markBackupDone(dateIso = todayIso()) {
   state.config.lastBackupAt = dateIso;
+  persist();
+}
+
+// status: 'ok' (confirmado), 'unconfirmed' (enviado, sem leitura da resposta
+// — o Apps Script costuma bloquear o CORS da resposta mesmo tendo gravado)
+// ou 'error' (o proprio script recusou os dados).
+export function markSheetsSync(status, error = null) {
+  state.config.lastSheetsSyncAt = todayIso();
+  state.config.lastSheetsSyncStatus = status;
+  state.config.lastSheetsSyncError = status === 'error' ? String(error || '').slice(0, 200) : null;
   persist();
 }
 
