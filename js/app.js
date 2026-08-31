@@ -198,6 +198,9 @@ function applyParsed(text) {
 }
 
 function startListening() {
+  // Falar novamente pode ser tocado com um reconhecedor anterior ainda vivo
+  // (ex.: o usuario interrompe no meio da escuta) - encerra antes de abrir outro.
+  if (recognizer) { recognizer.abort(); recognizer = null; }
   recognizer = createRecognizer({
     onInterim(text) {
       const el = document.getElementById('voice-transcript');
@@ -223,6 +226,20 @@ function startListening() {
     },
   });
   recognizer?.start();
+}
+
+// Reaproveita a mesma folha, sem fechar e reabrir: volta o painel ao estado
+// "ouvindo" e comeca uma nova escuta por cima da tentativa anterior.
+function retryListening() {
+  const panel = document.getElementById('voice-panel');
+  if (!panel) return;
+  panel.classList.remove('is-error');
+  panel.querySelector('.voice-status .icon')?.classList.add('pulse');
+  const status = document.getElementById('voice-status');
+  if (status) status.textContent = 'Ouvindo…';
+  const transcript = document.getElementById('voice-transcript');
+  if (transcript) transcript.textContent = 'Fale a data, a descrição, o valor e as parcelas.';
+  startListening();
 }
 
 // ---------- configuracoes
@@ -387,6 +404,9 @@ sheet.addEventListener('click', (event) => {
       if (text.trim()) applyParsed(text);
       break;
     }
+    case 'voice-retry':
+      retryListening();
+      break;
     case 'expense-edit': {
       const expense = store.findExpense(target.dataset.id);
       if (expense) openExpenseSheet({ period: expense.period, expense });

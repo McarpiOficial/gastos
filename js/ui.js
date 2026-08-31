@@ -109,7 +109,10 @@ export function renderExpenseSheet({ mode, monthKey, period, values, voice, spee
            <span id="voice-status">${speech ? 'Ouvindo…' : 'Use o microfone do teclado'}</span>
          </div>
          ${speech
-    ? '<p class="voice-transcript" id="voice-transcript">Fale a data, a descrição, o valor e as parcelas.</p>'
+    ? `<p class="voice-transcript" id="voice-transcript">Fale a data, a descrição, o valor e as parcelas.</p>
+              <button type="button" class="btn" data-action="voice-retry" style="width:100%;margin-top:8px">
+                ${icon('mic')} Falar novamente
+              </button>`
     : `<div class="field" style="margin:8px 0 0">
                 <textarea id="voice-text" placeholder="Toque no microfone do teclado e fale: 27 de agosto sapato loja Bennys cem reais em três vezes"></textarea>
               </div>
