@@ -5,6 +5,7 @@ import {
   periodLabel, monthSummary, monthLabel, monthShort,
   formatIsoDate, installmentPreview, todayIso,
 } from './model.js';
+import { APP_VERSION } from './version.js';
 
 export function esc(value) {
   return String(value ?? '')
@@ -231,7 +232,7 @@ export function renderSettingsSheet(state) {
     <div class="sheet-head">
       <div>
         <h2 id="sheet-title">Configurações</h2>
-        <p>${count} compra${count === 1 ? '' : 's'} registrada${count === 1 ? '' : 's'}</p>
+        <p>${count} compra${count === 1 ? '' : 's'} registrada${count === 1 ? '' : 's'} · ${esc(APP_VERSION)}</p>
       </div>
       <button type="button" class="icon-btn" data-action="close" aria-label="Fechar">${icon('x')}</button>
     </div>

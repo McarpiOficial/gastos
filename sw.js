@@ -1,7 +1,7 @@
 // Rede primeiro, cache como rede de seguranca. Assim o app nunca serve um
 // arquivo velho quando esta online, e continua abrindo offline.
 
-const CACHE = 'gastos-v7';
+const CACHE = 'gastos-v8';
 const ASSETS = [
   '.',
   'index.html',
@@ -19,6 +19,7 @@ const ASSETS = [
   'js/money.js',
   'js/voice.js',
   'js/sheets.js',
+  'js/version.js',
 ];
 
 self.addEventListener('install', (event) => {
@@ -40,7 +41,11 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) return;
 
   event.respondWith(
-    fetch(request)
+    // cache: 'reload' ignora o cache HTTP do navegador (o GitHub Pages manda
+    // Cache-Control: max-age=600) - sem isso, "rede primeiro" as vezes so
+    // lia um arquivo velho que o proprio navegador tinha guardado, sem sequer
+    // perguntar ao servidor se havia versao nova.
+    fetch(request, { cache: 'reload' })
       .then((response) => {
         if (response.ok) {
           const copy = response.clone();
